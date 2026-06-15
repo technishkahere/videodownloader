@@ -10,27 +10,27 @@ import {
 const FAQS = [
   {
     q: "Is Grably free to use?",
-    a: "This is a demo interface, so everything here is free and simulated. In a real product, a generous free tier would cover casual use, with a Pro plan for batch downloads and higher quality.",
+    a: "You get 3 free downloads to try it out — no account needed. After that, create a free account and download without limits.",
   },
   {
     q: "Which platforms are supported?",
-    a: "The interface showcases YouTube, Instagram, TikTok, and Twitter / X. Paste a link from any of them and the platform is detected automatically.",
+    a: "YouTube, Instagram, TikTok, and Twitter / X. Paste a link from any of them and the platform is detected automatically.",
   },
   {
     q: "What formats and qualities can I choose?",
-    a: "You can pick MP4 video at 360p, 480p, 720p, or 1080p, or extract audio as MP3. The selector updates the estimated file size as you change options.",
+    a: "Save MP4 video at 360p, 480p, 720p, or 1080p — capped to whatever the source actually offers — or extract the audio as a high-quality MP3.",
+  },
+  {
+    q: "Does this really download videos?",
+    a: "Yes. Grably runs yt-dlp on the server to fetch and process the exact video you paste, then hands you the finished file to save.",
   },
   {
     q: "Are my downloads private?",
-    a: "Grably is privacy-first by design. In this prototype, your history is stored only in your browser's localStorage — nothing is sent to a server.",
+    a: "Your history is tied to your account and never shared. Processed files are stored only temporarily and auto-deleted from the server shortly after they're ready.",
   },
   {
-    q: "Does this actually download videos?",
-    a: "No. This is a frontend UI prototype. Every step — analysis, progress, and completion — is simulated with mock data so you can explore the full experience.",
-  },
-  {
-    q: "Can I download a whole playlist at once?",
-    a: "Batch and playlist downloads are on the roadmap. The current demo focuses on the single-link flow end to end.",
+    q: "Do I need an account?",
+    a: "Not to start — the free trial works anonymously. Sign up to unlock unlimited downloads and a saved, searchable history across your devices.",
   },
 ];
 

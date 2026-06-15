@@ -6,6 +6,8 @@ import { motion } from "framer-motion";
 import { Download, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { UserMenu } from "@/components/user-menu";
+import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -17,6 +19,7 @@ const LINKS = [
 export function Navbar() {
   const [scrolled, setScrolled] = React.useState(false);
   const [open, setOpen] = React.useState(false);
+  const { user, ready } = useAuth();
 
   React.useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -61,9 +64,9 @@ export function Navbar() {
 
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <Button asChild className="hidden sm:inline-flex" size="sm">
-            <Link href="/app">Open App</Link>
-          </Button>
+          <div className="hidden sm:block">
+            <UserMenu />
+          </div>
           <Button
             variant="ghost"
             size="icon"
@@ -93,11 +96,28 @@ export function Navbar() {
                 {l.label}
               </Link>
             ))}
-            <Button asChild className="mt-1">
-              <Link href="/app" onClick={() => setOpen(false)}>
-                Open App
-              </Link>
-            </Button>
+            <div className="mt-2 flex flex-col gap-2 border-t border-border pt-3">
+              {ready && user ? (
+                <Button asChild>
+                  <Link href="/app" onClick={() => setOpen(false)}>
+                    Open dashboard
+                  </Link>
+                </Button>
+              ) : (
+                <>
+                  <Button asChild variant="outline">
+                    <Link href="/login" onClick={() => setOpen(false)}>
+                      Log in
+                    </Link>
+                  </Button>
+                  <Button asChild>
+                    <Link href="/signup" onClick={() => setOpen(false)}>
+                      Sign up
+                    </Link>
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </motion.div>
       )}

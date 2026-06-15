@@ -32,7 +32,7 @@ export function HeroSection() {
         >
           <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3.5 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur">
             <Sparkles className="h-3.5 w-3.5 text-primary" />
-            Now supporting 4 platforms · No sign-up required
+            4 platforms · 3 free downloads, no sign-up needed
           </span>
 
           <h1 className="text-balance text-4xl font-semibold tracking-tight sm:text-6xl">

@@ -1,0 +1,90 @@
+// Grably — database schema
+// PostgreSQL + Prisma. Run `npm run db:push` (dev) or `npm run db:deploy` (prod).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DownloadStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum Plan {
+  FREE
+  PRO
+}
+
+model User {
+  id           String  @id @default(cuid())
+  // Email/passwordHash are null for anonymous "guest" users created during the
+  // free trial. On sign-up the guest row is upgraded in place (isGuest -> false)
+  // so the visitor's trial downloads carry over into their new account.
+  email        String? @unique
+  name         String?
+  passwordHash String?
+  plan         Plan    @default(FREE)
+  // Real accounts are the default; guest rows set this explicitly on create.
+  isGuest      Boolean @default(false)
+
+  // Lifetime count of successfully completed downloads (a dashboard stat).
+  downloadsUsed Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  downloads VideoDownload[]
+  usage     Usage?
+
+  @@map("users")
+}
+
+/// Per-user trial/usage counter. Created alongside every user (guest or real).
+/// Guests are gated by `trialDownloadsUsed` vs `trialLimit`; real accounts are
+/// unlimited, but the row is kept for analytics and future paid-plan metering.
+model Usage {
+  id                 String @id @default(cuid())
+  userId             String @unique
+  user               User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trialDownloadsUsed Int    @default(0)
+  trialLimit         Int    @default(3)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("usage")
+}
+
+model VideoDownload {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  url       String
+  title     String?
+  thumbnail String?
+  creator   String?
+  duration  String?
+  platform  String
+  quality   String
+  format    String
+
+  status   DownloadStatus @default(PROCESSING)
+  progress Int            @default(0)
+  step     String?
+  fileUrl  String? // path/URL the finished file can be downloaded from
+  fileSize String?
+  error    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@map("video_downloads")
+}

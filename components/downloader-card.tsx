@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import {
   Download,
   Link2,
-  Loader2,
   CheckCircle2,
   AlertCircle,
   RotateCcw,
@@ -19,53 +18,59 @@ import { Badge } from "@/components/ui/badge";
 import { VideoPreview } from "@/components/video-preview";
 import { QualitySelector } from "@/components/quality-selector";
 import { ProgressBar } from "@/components/progress-bar";
+import { TrialLock } from "@/components/trial-lock";
+import { useAuth } from "@/components/auth-provider";
 import {
   detectPlatform,
   isValidUrl,
   PLATFORMS,
   type PlatformId,
 } from "@/lib/platforms";
-import { mockVideoInfo, type Format, type Quality, type VideoInfo, type HistoryItem } from "@/lib/mock";
+import {
+  getVideoInfo,
+  startDownload,
+  getJobStatus,
+  ApiError,
+} from "@/lib/api-client";
+import type { Format, Quality, VideoMeta } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Phase = "idle" | "analyzing" | "ready" | "downloading" | "complete" | "error";
 
 interface DownloaderCardProps {
   initialUrl?: string;
-  onDownloaded?: (item: HistoryItem) => void;
+  /** Called when a job is created or reaches a terminal state, to refresh history. */
+  onChange?: () => void;
   className?: string;
 }
 
-const ANALYZE_STEPS = ["Connecting to source...", "Fetching metadata...", "Analyzing video..."];
-const DOWNLOAD_STEPS = ["Preparing download...", "Processing stream...", "Finalizing file..."];
-
 export function DownloaderCard({
   initialUrl = "",
-  onDownloaded,
+  onChange,
   className,
 }: DownloaderCardProps) {
   const [url, setUrl] = React.useState(initialUrl);
   const [phase, setPhase] = React.useState<Phase>("idle");
-  const [info, setInfo] = React.useState<VideoInfo | null>(null);
+  const [meta, setMeta] = React.useState<VideoMeta | null>(null);
   const [quality, setQuality] = React.useState<Quality>("720p");
   const [format, setFormat] = React.useState<Format>("MP4");
   const [progress, setProgress] = React.useState(0);
   const [statusText, setStatusText] = React.useState("");
   const [errorMsg, setErrorMsg] = React.useState("");
+  const [fileUrl, setFileUrl] = React.useState<string | null>(null);
+  const [lockOpen, setLockOpen] = React.useState(false);
 
-  const timers = React.useRef<ReturnType<typeof setTimeout>[]>([]);
-  const interval = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const { refresh: refreshAuth } = useAuth();
+  const poll = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const clearAllTimers = React.useCallback(() => {
-    timers.current.forEach(clearTimeout);
-    timers.current = [];
-    if (interval.current) {
-      clearInterval(interval.current);
-      interval.current = null;
+  const stopPolling = React.useCallback(() => {
+    if (poll.current) {
+      clearInterval(poll.current);
+      poll.current = null;
     }
   }, []);
 
-  React.useEffect(() => () => clearAllTimers(), [clearAllTimers]);
+  React.useEffect(() => () => stopPolling(), [stopPolling]);
 
   const platformId: PlatformId = React.useMemo(
     () => (url.trim() ? detectPlatform(url) : "unknown"),
@@ -74,119 +79,135 @@ export function DownloaderCard({
   const platform = PLATFORMS[platformId];
   const PIcon = platform.icon;
 
-  function runProgress(
-    steps: string[],
-    duration: number,
-    onDone: () => void
-  ) {
-    setProgress(0);
-    let p = 0;
-    const stepSize = 100 / (steps.length || 1);
-    interval.current = setInterval(() => {
-      p += Math.random() * 4 + 1.5;
-      if (p >= 100) p = 100;
-      setProgress(p);
-      const idx = Math.min(steps.length - 1, Math.floor(p / stepSize));
-      setStatusText(steps[idx]);
-      if (p >= 100) {
-        if (interval.current) clearInterval(interval.current);
-        interval.current = null;
-        timers.current.push(setTimeout(onDone, 350));
-      }
-    }, duration / 45);
-  }
-
-  function handleAnalyze(e?: React.FormEvent) {
+  async function handleAnalyze(e?: React.FormEvent) {
     e?.preventDefault();
     const trimmed = url.trim();
 
-    if (!trimmed) {
-      setErrorMsg("Enter a valid video link");
-      setPhase("error");
-      toast.error("Enter a valid video link", {
-        description: "The URL field is empty.",
-      });
-      return;
-    }
-    if (!isValidUrl(trimmed)) {
-      setErrorMsg("Enter a valid video link");
-      setPhase("error");
-      toast.error("That doesn't look like a URL", {
-        description: "Check the link and try again.",
-      });
-      return;
-    }
-    const detected = detectPlatform(trimmed);
-    if (detected === "unknown") {
-      setErrorMsg("This platform is not supported");
-      setPhase("error");
-      toast.error("Unsupported platform", {
-        description: "Try a YouTube, Instagram, TikTok, or X link.",
-      });
-      return;
-    }
+    // Instant client-side guards for snappy UX (server re-validates anyway).
+    if (!trimmed) return fail("Enter a valid video link", "The URL field is empty.");
+    if (!isValidUrl(trimmed))
+      return fail("Enter a valid video link", "Check the link and try again.");
+    if (detectPlatform(trimmed) === "unknown")
+      return fail(
+        "This platform is not supported",
+        "Try a YouTube, Instagram, TikTok, or X link."
+      );
 
     setErrorMsg("");
     setPhase("analyzing");
-    clearAllTimers();
-    runProgress(ANALYZE_STEPS, 1800, () => {
-      // 12% simulated failure for realism on a special keyword
-      if (/fail|error|broken/i.test(trimmed)) {
-        setPhase("error");
-        setErrorMsg("Something went wrong. Try again.");
-        toast.error("Processing failed", {
-          description: "We couldn't analyze that video.",
-        });
-        return;
-      }
-      setInfo(mockVideoInfo(trimmed, detected));
+    setProgress(0);
+    setStatusText("Analyzing video...");
+
+    try {
+      const info = await getVideoInfo(trimmed);
+      setMeta(info);
+      // Pick a sensible default quality from what's actually available.
+      const preferred: Quality = info.availableQualities.includes("720p")
+        ? "720p"
+        : info.availableQualities[info.availableQualities.length - 1] ?? "360p";
+      setQuality(preferred);
+      setFormat(info.availableFormats[0] ?? "MP4");
       setPhase("ready");
-    });
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Something went wrong. Try again.";
+      fail(message);
+    }
   }
 
-  function handleDownload() {
-    if (!info) return;
+  function fail(message: string, description?: string) {
+    stopPolling();
+    setErrorMsg(message);
+    setPhase("error");
+    toast.error(message, description ? { description } : undefined);
+  }
+
+  async function handleDownload() {
+    if (!meta) return;
     setPhase("downloading");
-    clearAllTimers();
-    runProgress(DOWNLOAD_STEPS, 2600, () => {
-      setStatusText("Complete");
-      setPhase("complete");
-      toast.success("Download complete", {
-        description: `${info.title} · ${format === "MP3" ? "MP3" : quality}`,
-      });
-      onDownloaded?.({
-        id: `dl-${Date.now()}`,
-        title: info.title,
-        creator: info.creator,
-        date: new Date().toISOString(),
+    setProgress(0);
+    setStatusText("Starting...");
+    setFileUrl(null);
+
+    let id: string;
+    try {
+      const res = await startDownload({
+        url: meta.url,
         quality,
         format,
-        platform: info.platform,
-        status: "Completed",
-        thumbGradient: info.thumbGradient,
+        title: meta.title,
+        thumbnail: meta.thumbnail,
+        creator: meta.uploader,
+        duration: meta.duration,
       });
-    });
+      id = res.id;
+      refreshAuth(); // a trial download was just consumed — update the meter
+      onChange?.(); // surface the PROCESSING row in history immediately
+    } catch (err) {
+      // Free trial exhausted → show the premium lock instead of an error.
+      if (err instanceof ApiError && err.code === "TRIAL_EXCEEDED") {
+        setPhase("ready");
+        setProgress(0);
+        setStatusText("");
+        setLockOpen(true);
+        refreshAuth();
+        return;
+      }
+      return fail(
+        err instanceof ApiError ? err.message : "Could not start the download."
+      );
+    }
+
+    // Poll the job status until it reaches a terminal state.
+    poll.current = setInterval(async () => {
+      try {
+        const s = await getJobStatus(id);
+        setProgress(s.progress);
+        setStatusText(s.step || "Processing...");
+
+        if (s.status === "COMPLETED") {
+          stopPolling();
+          setProgress(100);
+          setStatusText("Complete");
+          setFileUrl(s.fileUrl);
+          setPhase("complete");
+          toast.success("Download ready", {
+            description: `${meta.title.slice(0, 40)}${
+              meta.title.length > 40 ? "…" : ""
+            }`,
+          });
+          onChange?.();
+          refreshAuth();
+        } else if (s.status === "FAILED") {
+          stopPolling();
+          fail(s.error || "Something went wrong. Try again.");
+          onChange?.();
+        }
+      } catch (err) {
+        stopPolling();
+        fail(
+          err instanceof ApiError ? err.message : "Lost connection to the server."
+        );
+      }
+    }, 1000);
   }
 
   function reset(keepUrl = false) {
-    clearAllTimers();
+    stopPolling();
     if (!keepUrl) setUrl("");
     setPhase("idle");
-    setInfo(null);
+    setMeta(null);
     setProgress(0);
     setStatusText("");
     setErrorMsg("");
+    setFileUrl(null);
   }
 
   const inputLocked = phase === "analyzing" || phase === "downloading";
 
   return (
-    <Card
-      className={cn(
-        "glow w-full overflow-hidden p-5 sm:p-7",
-        className
-      )}
-    >
+    <>
+    <Card className={cn("glow w-full overflow-hidden p-5 sm:p-7", className)}>
       {/* URL input row */}
       <form onSubmit={handleAnalyze} className="space-y-3">
         <div className="relative flex flex-col gap-3 sm:flex-row">
@@ -202,10 +223,10 @@ export function DownloaderCard({
               placeholder="Paste your video link here..."
               className={cn(
                 "h-12 pl-10 pr-28 text-sm",
-                phase === "error" && "border-destructive focus-visible:ring-destructive"
+                phase === "error" &&
+                  "border-destructive focus-visible:ring-destructive"
               )}
             />
-            {/* live platform badge */}
             <AnimatePresence>
               {url.trim() && platformId !== "unknown" && (
                 <motion.div
@@ -242,7 +263,6 @@ export function DownloaderCard({
           )}
         </div>
 
-        {/* inline error card */}
         <AnimatePresence>
           {phase === "error" && errorMsg && (
             <motion.div
@@ -258,7 +278,6 @@ export function DownloaderCard({
         </AnimatePresence>
       </form>
 
-      {/* Analyzing progress */}
       <AnimatePresence mode="wait">
         {phase === "analyzing" && (
           <motion.div
@@ -268,13 +287,12 @@ export function DownloaderCard({
             exit={{ opacity: 0 }}
             className="mt-6"
           >
-            <ProgressBar progress={progress} status={statusText || "Analyzing video..."} />
+            <ProgressBar progress={progress} status={statusText || "Analyzing video..."} indeterminate />
           </motion.div>
         )}
 
-        {/* Ready: preview + quality + download */}
         {(phase === "ready" || phase === "downloading" || phase === "complete") &&
-          info && (
+          meta && (
             <motion.div
               key="ready"
               initial={{ opacity: 0, y: 10 }}
@@ -282,7 +300,7 @@ export function DownloaderCard({
               exit={{ opacity: 0 }}
               className="mt-6 space-y-6"
             >
-              <VideoPreview info={info} />
+              <VideoPreview info={meta} />
 
               {phase === "ready" && (
                 <>
@@ -291,6 +309,8 @@ export function DownloaderCard({
                     format={format}
                     onQualityChange={setQuality}
                     onFormatChange={setFormat}
+                    availableQualities={meta.availableQualities}
+                    availableFormats={meta.availableFormats}
                   />
                   <Button onClick={handleDownload} size="lg" className="w-full">
                     <Download className="h-4 w-4" />
@@ -312,20 +332,18 @@ export function DownloaderCard({
                   <div className="flex flex-col gap-3 rounded-xl border border-success/30 bg-success/10 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-2.5 text-sm">
                       <CheckCircle2 className="h-5 w-5 text-success" />
-                      <span>
-                        Saved as{" "}
-                        <span className="font-medium">
-                          {info.title.slice(0, 28)}
-                          {info.title.length > 28 ? "…" : ""}.
-                          {format.toLowerCase()}
-                        </span>
-                      </span>
+                      <span>Your file is ready to download.</span>
                     </div>
                     <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => setPhase("ready")}>
-                        Change options
-                      </Button>
-                      <Button size="sm" onClick={() => reset(false)}>
+                      {fileUrl && (
+                        <Button asChild size="sm">
+                          <a href={fileUrl} download>
+                            <Download className="h-4 w-4" />
+                            Save file
+                          </a>
+                        </Button>
+                      )}
+                      <Button size="sm" variant="outline" onClick={() => reset(false)}>
                         <RotateCcw className="h-4 w-4" />
                         New
                       </Button>
@@ -337,5 +355,7 @@ export function DownloaderCard({
           )}
       </AnimatePresence>
     </Card>
+    <TrialLock open={lockOpen} onClose={() => setLockOpen(false)} />
+    </>
   );
 }

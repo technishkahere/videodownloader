@@ -49,13 +49,13 @@ const FEATURES = [
     icon: ShieldCheck,
     title: "Privacy focused",
     description:
-      "Your history lives only in your browser. Nothing is tracked, stored, or shared.",
+      "Files are processed securely and auto-deleted from the server soon after. Your history stays private to your account.",
   },
   {
     icon: InfinityIcon,
-    title: "No limits, no sign-up",
+    title: "Start free in seconds",
     description:
-      "Start instantly. No account, no credit card, no daily caps to slow you down.",
+      "Try 3 downloads with no account at all. Sign up free for unlimited grabbing — no credit card, ever.",
   },
 ];
 

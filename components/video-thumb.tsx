@@ -1,22 +1,34 @@
+"use client";
+
+import * as React from "react";
 import { Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface VideoThumbProps {
   gradient: string;
+  src?: string | null;
   duration?: string;
   className?: string;
   iconClassName?: string;
   rounded?: string;
 }
 
-/** Mock thumbnail: a gradient surface with a play glyph and optional duration chip. */
+/**
+ * Thumbnail surface. Renders the real upstream thumbnail when `src` is given,
+ * with a deterministic gradient as the loading/fallback background.
+ */
 export function VideoThumb({
   gradient,
+  src,
   duration,
   className,
   iconClassName,
   rounded = "rounded-xl",
 }: VideoThumbProps) {
+  const [loaded, setLoaded] = React.useState(false);
+  const [errored, setErrored] = React.useState(false);
+  const showImage = !!src && !errored;
+
   return (
     <div
       className={cn(
@@ -26,6 +38,21 @@ export function VideoThumb({
         className
       )}
     >
+      {showImage && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src!}
+          alt=""
+          loading="lazy"
+          onLoad={() => setLoaded(true)}
+          onError={() => setErrored(true)}
+          className={cn(
+            "absolute inset-0 h-full w-full object-cover transition-opacity duration-300",
+            loaded ? "opacity-100" : "opacity-0"
+          )}
+        />
+      )}
+      <div className="absolute inset-0 bg-black/10" />
       <div className="absolute inset-0 opacity-30 mix-blend-overlay [background-image:radial-gradient(circle_at_30%_20%,white,transparent_45%)]" />
       <span
         className={cn(

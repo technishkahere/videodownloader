@@ -5,20 +5,24 @@ import { motion } from "framer-motion";
 import { Check, Film, Music, Sparkles } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
-import type { Format, Quality } from "@/lib/mock";
+import type { Format, Quality } from "@/lib/types";
 
-const QUALITIES: { value: Quality; label: string; note: string; size: string }[] = [
-  { value: "360p", label: "360p", note: "Data saver", size: "~12 MB" },
-  { value: "480p", label: "480p", note: "Standard", size: "~24 MB" },
-  { value: "720p", label: "720p", note: "HD", size: "~48 MB" },
-  { value: "1080p", label: "1080p", note: "Full HD", size: "~96 MB" },
-];
+const QUALITY_META: Record<Quality, { note: string }> = {
+  "360p": { note: "Data saver" },
+  "480p": { note: "Standard" },
+  "720p": { note: "HD" },
+  "1080p": { note: "Full HD" },
+};
+const ORDER: Quality[] = ["360p", "480p", "720p", "1080p"];
 
 interface QualitySelectorProps {
   quality: Quality;
   format: Format;
   onQualityChange: (q: Quality) => void;
   onFormatChange: (f: Format) => void;
+  /** Resolutions the source actually offers. Others render disabled. */
+  availableQualities?: Quality[];
+  availableFormats?: Format[];
 }
 
 export function QualitySelector({
@@ -26,8 +30,11 @@ export function QualitySelector({
   format,
   onQualityChange,
   onFormatChange,
+  availableQualities = ORDER,
+  availableFormats = ["MP4", "MP3"],
 }: QualitySelectorProps) {
   const isAudio = format === "MP3";
+  const qSet = new Set(availableQualities);
 
   return (
     <div className="space-y-5">
@@ -42,16 +49,19 @@ export function QualitySelector({
             ] as const
           ).map((f) => {
             const active = format === f.value;
+            const disabled = !availableFormats.includes(f.value);
             return (
               <button
                 key={f.value}
                 type="button"
+                disabled={disabled}
                 onClick={() => onFormatChange(f.value)}
                 className={cn(
                   "relative flex items-center gap-3 rounded-xl border p-3.5 text-left transition-all",
                   active
                     ? "border-primary bg-accent/60 ring-1 ring-primary"
-                    : "border-border hover:border-primary/40 hover:bg-accent/30"
+                    : "border-border hover:border-primary/40 hover:bg-accent/30",
+                  disabled && "cursor-not-allowed opacity-40 hover:border-border hover:bg-transparent"
                 )}
               >
                 <span
@@ -97,30 +107,33 @@ export function QualitySelector({
             isAudio && "pointer-events-none select-none opacity-50"
           )}
         >
-          {QUALITIES.map((q) => {
-            const active = quality === q.value && !isAudio;
+          {ORDER.map((q) => {
+            const supported = qSet.has(q);
+            const active = quality === q && !isAudio;
             return (
               <label
-                key={q.value}
-                htmlFor={`q-${q.value}`}
+                key={q}
+                htmlFor={`q-${q}`}
                 className={cn(
                   "flex cursor-pointer flex-col gap-1 rounded-xl border p-3 transition-all",
                   active
                     ? "border-primary bg-accent/60 ring-1 ring-primary"
-                    : "border-border hover:border-primary/40 hover:bg-accent/30"
+                    : "border-border hover:border-primary/40 hover:bg-accent/30",
+                  !supported &&
+                    "pointer-events-none cursor-not-allowed opacity-40 hover:border-border"
                 )}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold">{q.label}</span>
+                  <span className="text-sm font-semibold">{q}</span>
                   <RadioGroupItem
-                    value={q.value}
-                    id={`q-${q.value}`}
+                    value={q}
+                    id={`q-${q}`}
+                    disabled={!supported}
                     className="h-4 w-4"
                   />
                 </div>
-                <span className="text-[11px] text-muted-foreground">{q.note}</span>
-                <span className="text-[11px] font-medium text-muted-foreground/80">
-                  {q.size}
+                <span className="text-[11px] text-muted-foreground">
+                  {supported ? QUALITY_META[q].note : "Unavailable"}
                 </span>
               </label>
             );

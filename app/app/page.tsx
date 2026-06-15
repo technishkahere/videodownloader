@@ -1,18 +1,12 @@
 import { Suspense } from "react";
-import { Navbar } from "@/components/navbar";
-import { Footer } from "@/components/footer";
-import { Dashboard } from "@/components/dashboard";
+import { DownloaderView } from "@/components/downloader-view";
 
-export default function AppPage() {
+export default function DownloaderPage() {
   return (
-    <div className="flex min-h-screen flex-col">
-      <Navbar />
-      <main className="flex-1">
-        <Suspense fallback={<div className="container py-20 text-muted-foreground">Loading…</div>}>
-          <Dashboard />
-        </Suspense>
-      </main>
-      <Footer />
-    </div>
+    <Suspense
+      fallback={<div className="py-20 text-muted-foreground">Loading…</div>}
+    >
+      <DownloaderView />
+    </Suspense>
   );
 }

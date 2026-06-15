@@ -6,6 +6,11 @@ next-env.d.ts
 .DS_Store
 *.pem
 npm-debug.log*
+.env
 .env*.local
 .vercel
 *.tsbuildinfo
+
+# Downloaded media (temporary) & Prisma local artifacts
+/downloads
+/prisma/*.db

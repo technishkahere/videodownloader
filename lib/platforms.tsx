@@ -1,7 +1,10 @@
 import { Youtube, Instagram, Music2, Twitter, Globe } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { detectPlatform, isValidUrl, type PlatformId } from "@/lib/url";
 
-export type PlatformId = "youtube" | "instagram" | "tiktok" | "twitter" | "unknown";
+// Re-export the shared, dependency-free helpers so existing imports keep working.
+export { detectPlatform, isValidUrl };
+export type { PlatformId };
 
 export interface Platform {
   id: PlatformId;
@@ -56,20 +59,3 @@ export const SUPPORTED_PLATFORMS = [
   PLATFORMS.tiktok,
   PLATFORMS.twitter,
 ];
-
-/** Lightweight, purely-frontend URL detection. */
-export function detectPlatform(url: string): PlatformId {
-  const u = url.toLowerCase().trim();
-  if (/(youtube\.com|youtu\.be)/.test(u)) return "youtube";
-  if (/instagram\.com/.test(u)) return "instagram";
-  if (/tiktok\.com/.test(u)) return "tiktok";
-  if (/(twitter\.com|x\.com)/.test(u)) return "twitter";
-  return "unknown";
-}
-
-export function isValidUrl(url: string): boolean {
-  const u = url.trim();
-  if (!u) return false;
-  // Accept things that at least look like a URL
-  return /^(https?:\/\/)?([\w-]+\.)+[\w-]+(\/\S*)?$/.test(u);
-}

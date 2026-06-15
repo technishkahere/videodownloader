@@ -2,14 +2,21 @@
   "name": "grably",
   "version": "1.0.0",
   "private": true,
-  "description": "Grably — a premium video downloader UI prototype (frontend-only, mock functionality).",
+  "description": "Grably — a premium, full-stack video downloader (Next.js + Prisma + yt-dlp).",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@prisma/client": "^5.20.0",
+    "zod": "^3.23.8",
     "@radix-ui/react-accordion": "^1.2.1",
     "@radix-ui/react-dropdown-menu": "^2.1.2",
     "@radix-ui/react-label": "^2.1.0",
@@ -35,6 +42,7 @@
     "autoprefixer": "^10.4.20",
     "eslint": "^8.57.0",
     "eslint-config-next": "14.2.13",
+    "prisma": "^5.20.0",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.12",
     "typescript": "^5.6.2"

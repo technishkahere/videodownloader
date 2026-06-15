@@ -5,9 +5,10 @@ import { Clock, User, HardDrive } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { VideoThumb } from "@/components/video-thumb";
 import { PLATFORMS } from "@/lib/platforms";
-import type { VideoInfo } from "@/lib/mock";
+import { gradientFor } from "@/lib/utils";
+import type { VideoMeta } from "@/lib/types";
 
-export function VideoPreview({ info }: { info: VideoInfo }) {
+export function VideoPreview({ info }: { info: VideoMeta }) {
   const platform = PLATFORMS[info.platform] ?? PLATFORMS.unknown;
   const PIcon = platform.icon;
 
@@ -19,7 +20,8 @@ export function VideoPreview({ info }: { info: VideoInfo }) {
       className="flex flex-col gap-4 rounded-xl border border-border bg-secondary/40 p-4 sm:flex-row"
     >
       <VideoThumb
-        gradient={info.thumbGradient}
+        gradient={gradientFor(info.url)}
+        src={info.thumbnail}
         duration={info.duration}
         className="aspect-video w-full shrink-0 sm:w-52"
         iconClassName="h-12 w-12"
@@ -39,16 +41,18 @@ export function VideoPreview({ info }: { info: VideoInfo }) {
         <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <User className="h-3.5 w-3.5" />
-            {info.creator}
+            {info.uploader}
           </span>
           <span className="flex items-center gap-1.5">
             <Clock className="h-3.5 w-3.5" />
             {info.duration}
           </span>
-          <span className="flex items-center gap-1.5">
-            <HardDrive className="h-3.5 w-3.5" />
-            {info.fileSize}
-          </span>
+          {info.fileSizeEstimate && (
+            <span className="flex items-center gap-1.5">
+              <HardDrive className="h-3.5 w-3.5" />
+              {info.fileSizeEstimate}
+            </span>
+          )}
         </div>
       </div>
     </motion.div>
